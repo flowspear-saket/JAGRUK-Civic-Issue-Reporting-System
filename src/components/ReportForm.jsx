@@ -1,3 +1,4 @@
+import { apiUrl } from '../utils/api'
 // src/components/ReportForm.jsx
 import React, { useEffect, useState } from 'react'
 import LocationIQAutocomplete from './LocationIQAutocomplete'
@@ -170,7 +171,7 @@ export default function ReportForm({ onAddReport }) {
     setStatusMsg('Submitting report…')
 
     try {
-      const res = await fetch('/api/reports', { method: 'POST', body: fd })
+const res = await fetch(apiUrl('/api/reports'), { method: 'POST', body: fd })
       let serverReport = null
       if (res.ok) {
         try {

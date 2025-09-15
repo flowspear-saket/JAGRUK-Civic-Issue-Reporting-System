@@ -1,6 +1,5 @@
 // src/components/RecentReports.jsx
 import React, { useEffect, useState, useCallback } from 'react'
-import { apiUrl, absolutePhotoUrl } from '../utils/api'
 
 function StatusBadge({ status = '' }) {
   const s = String(status || '').toLowerCase()
@@ -37,6 +36,7 @@ export default function RecentReports({ limit = 5, inline = false, renderExtra =
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  // Nicely shorten long addresses (e.g. show "Karol Bagh, Delhi")
   function prettyAddress(addr, maxParts = 2) {
     if (!addr || typeof addr !== 'string') return null
     const parts = addr.split(',').map((s) => s.trim()).filter(Boolean)
@@ -48,11 +48,13 @@ export default function RecentReports({ limit = 5, inline = false, renderExtra =
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch(apiUrl(`/api/public/reports?limit=${limit}`), { signal })
+        const res = await fetch(`/api/public/reports?limit=${limit}`, { signal })
         if (!res.ok) throw new Error(`fetch failed: ${res.status}`)
         const json = await res.json()
+        // Accept both array and { data: [...] } shapes
         const arr = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : []
 
+        // Normalize a few coordinate key names onto location_lat/location_lng when possible
         const normalized = arr.map((r) => {
           const lat =
             r.location_lat ??
@@ -75,11 +77,14 @@ export default function RecentReports({ limit = 5, inline = false, renderExtra =
           }
         })
 
-        const sorted = normalized.slice().sort((a, b) => {
-          const ta = a.created_at ? new Date(a.created_at).getTime() : 0
-          const tb = b.created_at ? new Date(b.created_at).getTime() : 0
-          return tb - ta
-        })
+        // Sort newest first
+        const sorted = normalized
+          .slice()
+          .sort((a, b) => {
+            const ta = a.created_at ? new Date(a.created_at).getTime() : 0
+            const tb = b.created_at ? new Date(b.created_at).getTime() : 0
+            return tb - ta
+          })
 
         setItems(sorted)
       } catch (e) {
@@ -100,30 +105,33 @@ export default function RecentReports({ limit = 5, inline = false, renderExtra =
     return () => ac.abort()
   }, [loadReports])
 
-const renderImage = (r) => {
-  const src = r.photo_url || r.photo || r.photoUrl || ''
-  if (!src) {
+  const renderImage = (r) => {
+    const src = r.photo_url || r.photo || r.photoUrl || ''
+    if (!src) {
+      return (
+        <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+          No image
+        </div>
+      )
+    }
     return (
-      <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
-        No image
-      </div>
+      <img
+        src={src}
+        alt={r.type ? `${r.type} thumbnail` : 'report thumbnail'}
+        className="object-cover w-full h-full"
+        onError={(e) => {
+          try {
+            // avoid infinite loop if src is bad
+            e.currentTarget.onerror = null
+            e.currentTarget.src = ''
+            e.currentTarget.style.background = '#f3f4f6'
+          } catch (err) {
+            // ignore
+          }
+        }}
+      />
     )
   }
-
-  return (
-    <img
-      src={absolutePhotoUrl(src)}
-      alt={r.type ? `${r.type} thumbnail` : 'report thumbnail'}
-      className="object-cover w-full h-full"
-      onError={(e) => {
-        e.currentTarget.onerror = null
-        e.currentTarget.src = ''
-        e.currentTarget.style.background = '#f3f4f6'
-      }}
-    />
-  )
-}
-
 
   const listContent = (
     <>
@@ -161,7 +169,6 @@ const renderImage = (r) => {
                   minute: '2-digit',
                 })
               : ''
-
             return (
               <div
                 key={key}
@@ -171,14 +178,18 @@ const renderImage = (r) => {
                   <div className="w-14 h-14 rounded-md bg-white flex items-center justify-center overflow-hidden border">
                     {renderImage(r)}
                   </div>
+
                   <div>
                     <div className="font-medium text-lg">{typeLabel}</div>
                     <div className="text-sm text-gray-500 mt-1">{locationLabel}</div>
+
+                    {/* render extra content below the location (e.g. View on map button) */}
                     {typeof renderExtra === 'function' ? (
                       <div className="mt-2">{renderExtra(r)}</div>
                     ) : null}
                   </div>
                 </div>
+
                 <div className="flex flex-col items-end gap-2">
                   <div>
                     <StatusBadge status={r.status} />
@@ -202,3 +213,13 @@ const renderImage = (r) => {
     </section>
   )
 }
+<RecentReports
+  renderExtra={(r) => (
+    <button
+      className="text-sm px-3 py-1 rounded border bg-white"
+      onClick={() => setOpenReport(r)} // your modal handler
+    >
+      View on map
+    </button>
+  )}
+/>

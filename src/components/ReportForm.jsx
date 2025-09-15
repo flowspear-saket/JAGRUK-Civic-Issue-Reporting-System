@@ -1,7 +1,6 @@
 // src/components/ReportForm.jsx
 import React, { useEffect, useState } from 'react'
 import LocationIQAutocomplete from './LocationIQAutocomplete'
-import { apiUrl } from '../utils/api' // <- added: use absolute backend URLs
 
 function generateCaptcha() {
   return Math.floor(1000 + Math.random() * 9000)
@@ -19,7 +18,9 @@ export default function ReportForm({ onAddReport }) {
     contact: '',
     name: '',
     complaintType: '',
+    // human-readable location chosen by user (autocomplete) or typed manually
     location: '',
+    // optional address field (separate)
     address: '',
     comment: '',
     email: '',
@@ -47,10 +48,14 @@ export default function ReportForm({ onAddReport }) {
     }
   }
 
+  // Called by LocationIQAutocomplete when user picks an address
+  // expected shape: { address: 'Karol Bagh, Delhi, ...', lat: 28.65..., lng: 77.19... }
   const onPlaceSelected = ({ address, lat, lng }) => {
+    // Put the human-readable place into `location` and also into `address` so server has a clear field
     setFormData((s) => ({
       ...s,
       location: address || s.location,
+      // do not overwrite a manually typed address if present, but set it if empty
       address: s.address ? s.address : address || s.address,
       lat: lat ?? s.lat,
       lng: lng ?? s.lng,
@@ -69,6 +74,7 @@ export default function ReportForm({ onAddReport }) {
       (pos) => {
         setFormData((s) => ({
           ...s,
+          // store coords and a fallback human-readable location text as coords string
           location: `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`,
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
@@ -87,6 +93,7 @@ export default function ReportForm({ onAddReport }) {
 
   const ensureLocation = () =>
     new Promise((resolve) => {
+      // treat 0 as valid; use != null check
       if (formData.lat != null && formData.lng != null) return resolve(true)
       if (!navigator.geolocation) return resolve(false)
       navigator.geolocation.getCurrentPosition(
@@ -109,6 +116,7 @@ export default function ReportForm({ onAddReport }) {
     e.preventDefault()
     if (submitting) return
 
+    // required fields
     if (!formData.contact || !formData.name || !formData.complaintType || !formData.comment) {
       setStatusMsg('Please fill required fields: Contact, Name, Complaint type, Comment.')
       return
@@ -122,6 +130,7 @@ export default function ReportForm({ onAddReport }) {
     setStatusMsg('Preparing submission…')
     await ensureLocation()
 
+    // debug: show what's going to be sent
     console.debug('Submitting report, formData snapshot:', {
       location_text: formData.location,
       address: formData.address,
@@ -133,17 +142,23 @@ export default function ReportForm({ onAddReport }) {
     const fd = new FormData()
     if (formData.imageFile) fd.append('photo', formData.imageFile)
 
+    // core report fields
     fd.append('contact', formData.contact)
     fd.append('name', formData.name)
     fd.append('type', formData.complaintType)
     fd.append('description', formData.comment)
 
+    // optional form fields
+    // send the explicit address field (user-editable)
     fd.append('address', formData.address || '')
     fd.append('email', formData.email || '')
 
+    // send human-readable location text in multiple keys (some backends expect different names)
+    // primary: location_text, also location and address (address already appended above)
     fd.append('location_text', formData.location || '')
     fd.append('location', formData.location || '')
 
+    // coordinates: prefer lat/lng but send alternate names too
     if (formData.lat != null && formData.lng != null) {
       fd.append('lat', String(formData.lat))
       fd.append('lng', String(formData.lng))
@@ -155,8 +170,7 @@ export default function ReportForm({ onAddReport }) {
     setStatusMsg('Submitting report…')
 
     try {
-      // <-- use apiUrl helper so Netlify built frontend calls your Render backend
-      const res = await fetch(apiUrl('/api/reports'), { method: 'POST', body: fd })
+      const res = await fetch('/api/reports', { method: 'POST', body: fd })
       let serverReport = null
       if (res.ok) {
         try {
@@ -271,6 +285,8 @@ export default function ReportForm({ onAddReport }) {
         <span className="text-sm font-medium text-gray-700">Complaint Location *</span>
         <div className="flex gap-2 mt-1">
           <div className="flex-1">
+            {/* Autocomplete helps user pick a precise human-readable place.
+                When user picks it, onPlaceSelected will populate formData.location and coords. */}
             <LocationIQAutocomplete onSelect={onPlaceSelected} disabled={submitting} />
           </div>
 
@@ -285,6 +301,7 @@ export default function ReportForm({ onAddReport }) {
           </button>
         </div>
 
+        {/* show a visible, editable input with the chosen location (so user can see & edit) */}
         <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
           <input
             name="location"

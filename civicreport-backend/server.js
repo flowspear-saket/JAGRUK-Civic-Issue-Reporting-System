@@ -13,6 +13,11 @@ const { MongoClient, ServerApiVersion } = require('mongodb')
 const app = express()
 const PORT = Number(process.env.PORT || 4000)
 
+// IMPORTANT: expose the backend's public base URL so stored image URLs are absolute.
+// Set BACKEND_URL to your Render app URL (e.g. https://my-backend.onrender.com) in Render env vars.
+// Fallback to localhost for local dev.
+const BACKEND_URL = process.env.BACKEND_URL || `http://localhost:${PORT}`
+
 // CORS - permissive by default for local dev
 app.use(
   cors({
@@ -38,8 +43,6 @@ try {
 
 /* ---------------------
    Persistence strategy
-   - If MONGO_URI is set and DB connection succeeds -> use MongoDB collection
-   - Otherwise -> fallback to file-based (reports.json) + in-memory array
    --------------------- */
 const MONGO_URI = process.env.MONGO_URI || ''
 const MONGO_DB = process.env.MONGO_DB || 'civicsense'
@@ -114,7 +117,7 @@ const upload = multer({
   },
 })
 
-// serve uploaded files
+// serve uploaded files (static)
 app.use('/uploads', express.static(UPLOADS_DIR, { index: false }))
 
 /* ---------------------
@@ -391,7 +394,8 @@ app.post('/api/reports', (req, res, next) => {
       const email = body.email || body.email_address || body.emailAddress || null
       const created_by = body.created_by || body.createdBy || null
 
-      const photo = req.file ? `/uploads/${path.basename(req.file.filename)}` : null
+      // NOTE: store absolute URL so frontend hosted on a different origin can fetch the image
+      const photo = req.file ? `${BACKEND_URL}/uploads/${path.basename(req.file.filename)}` : null
 
       const reportPayload = {
         type,
@@ -510,6 +514,7 @@ app.delete('/api/reports/:id', requireAuth, async (req, res, next) => {
     // remove uploaded file if present
     try {
       if (removed.photo_url) {
+        // works whether photo_url is absolute URL or relative path
         const filename = path.basename(removed.photo_url)
         const filePath = path.join(UPLOADS_DIR, filename)
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
@@ -577,6 +582,7 @@ async function start() {
   app.listen(PORT, () => {
     console.log(`CivicReport backend running at http://localhost:${PORT}`)
     console.log(`Using MongoDB: ${Boolean(usingMongo)}`)
+    console.log(`BACKEND_URL is set to: ${BACKEND_URL}`)
   })
 }
 

@@ -66,23 +66,24 @@ Frontend: Hosted on Netlify
 Backend: Hosted on Render
 MongoDB: Hosted on MongoDB Atlas
 Ensure BACKEND_URL in .env points to your Render app URL.
-
+```
 🧩 Folder Structure
 ```
 JAGRUK/
 │
-├── civicreport-backend/       # Node + Express server
-│   ├── server.js              # Main backend logic
-│   ├── uploads/               # Uploaded images
-│   ├── reports.json           # Local fallback data
+├── civicreport-backend/
+│   ├── server.js
+│   ├── uploads/
+│   ├── reports.json
 │
-├── src/                       # React frontend
+├── src/
 │   ├── components/
 │   ├── pages/
 │   ├── context/
 │
 └── README.md
 
+```
 🔒 Security Highlights
 ```
 JWT-based admin authentication

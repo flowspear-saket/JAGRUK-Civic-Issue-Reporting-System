@@ -48,6 +48,7 @@
 import React from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Shell from './layouts/Shell'
+import AskBot from './components/AskBot'
 
 // Pages
 import Home from './pages/Home'
